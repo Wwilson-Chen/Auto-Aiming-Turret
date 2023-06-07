@@ -2,9 +2,9 @@
 #include <PID_v1.h>
 #include <Servo.h>
 
-SoftwareSerial mySerial(0, 1); // RX, TX pins for SoftwareSerial
+SoftwareSerial mySerial(0, 1);  // RX, TX pins for SoftwareSerial
 
-double setpointX, inputX, outputX; //中心點；現在讀取的紅心座標；PID輸出
+double setpointX, inputX, outputX;  //中心點；現在讀取的紅心座標；PID輸出
 double setpointY, inputY, outputY;
 
 bool can_fire = false;
@@ -12,7 +12,7 @@ bool is_firing = false;
 
 unsigned long firing_start_time = 0;
 unsigned long firing_current_time = 0;
-const long firing_time = 150; //射擊時間
+const long firing_time = 150;  //射擊時間
 
 
 // unsigned long recoil_start_time = 0;
@@ -23,34 +23,34 @@ const long firing_time = 150; //射擊時間
 Servo servoX;
 Servo servoY;
 
-const int shoot = 5; //開槍馬達腳位
-const int stop = 6; //停止提升子彈馬達腳位
+const int shoot = 5;  //開槍馬達腳位
+const int stop = 6;   //停止提升子彈馬達腳位
 
-double Kp=2, Ki=5, Kd=1; //調PID參數
-float errorX = 0, PX = 0, IX = 0, DX = 0, PID_valueX = 0;//pid直道参数
-float errorY = 0, PY = 0, IY = 0, DY = 0, PID_valueY = 0;//pid直道参数
-float previous_errorX = 0, previous_errorY = 0, previous_I = 0;           //误差值
+double Kp = 0.5, Ki = 5, Kd = 1;                                   //調PID參數
+float errorX = 0, PX = 0, IX = 0, DX = 0, PID_valueX = 0;        //pid直道参数
+float errorY = 0, PY = 0, IY = 0, DY = 0, PID_valueY = 0;        //pid直道参数
+float previous_errorX = 0, previous_errorY = 0, previous_I = 0;  //误差值
 
 // PID pidX(&inputX, &outputX, &setpointX, Kp, Ki, Kd, DIRECT);
 // PID pidY(&inputY, &outputY, &setpointY, Kp, Ki, Kd, DIRECT);
 
 void setup() {
-  Serial.begin(9600); // Initialize the hardware serial port for debugging
-  mySerial.begin(115200); // Initialize the software serial port
+  Serial.begin(9600);      // Initialize the hardware serial port for debugging
+  mySerial.begin(115200);  // Initialize the software serial port
 
-  servoX.attach(10); //馬達X腳位
-  servoY.attach(9); //馬達Y腳位
+  servoX.attach(10);  //馬達X腳位
+  servoY.attach(9);   //馬達Y腳位
 
   servoX.write(176);
   servoY.write(70);
-  
+
   pinMode(shoot, OUTPUT);
   pinMode(stop, OUTPUT);
 
-  
+
   // inputX = readHeartCoordinateX();
   // inputY = readHeartCoordinateY();
-  
+
 
   setpointX = 400;
   setpointY = 300;
@@ -65,8 +65,8 @@ void setup() {
 }
 
 void loop() {
-  if (mySerial.available()) {
-    String center = mySerial.readString();
+  if (Serial.available()) {
+    String center = Serial.readString();
     // Process the received data here
     // Echo back the data to the serial port
     // mySerial.write(data);
@@ -75,58 +75,65 @@ void loop() {
     String strA = center.substring(0, spaceindex);
     String strB = center.substring(spaceindex + 1);
 
-    int inputX = strA.toInt(); //讀取紅心X座標
-    int inputY = strB.toInt(); //讀取紅心Y座標
+    int inputX = strA.toInt();  //讀取紅心X座標
+    int inputY = strB.toInt();  //讀取紅心Y座標
     Serial.println(inputX);
     Serial.println(inputY);
-    printf(inputX);
-    printf(inputY);
     errorX = inputX - setpointX;
     errorY = inputY - setpointY;
-    
+
+    if (inputX < 600 && inputX > 200 && inputY < 500 && inputY > 100) {
+      can_fire = true;
+      Serial.println("can fire");
+      fire();
+    }
+    if (inputX >= 500 || inputX >= 300 || inputY <= 400 || inputY >= 200) {
+      can_fire = false;
+    }
+
+    // pidX.Compute();
+    // pidY.Compute();
+    //calc_pidX();
+    //calc_pidY();
+
+    PX = errorX;
+    IX = IX + errorX;
+    DX = errorX - previous_errorX;
+    PID_valueX = (Kp * PX) + (Ki * IX) + (Kd * DX);
+    previous_errorX = errorX;
+    Serial.println(errorX);
+    errorX = 0;
+    PY = errorY;
+    IY = IY + errorY;
+    DY = errorY - previous_errorY;
+    PID_valueY = (Kp * PY) + (Ki * IY) + (Kd * DY);
+    previous_errorY = errorY;
+    Serial.println(errorY);
+    errorY = 0;
+    //writeServoX();
+    //writeServoY();
+
+    //int errorX = map(PID_valueX, -800, 800, 86, 266);
+    //int errorX = map(errorX, -800, 800, 86, 266);
+    int errorX = map(errorX, -800, 800, 156, 196);
+    if(errorX>270){
+      errorX=176;
+    }
+    inputX = map(inputX, -800, 800, 176-40, 176+40);
+
+    Serial.println(errorX);
+    Serial.println(inputX);
+    int angleX = errorX + inputX;
+    Serial.println(angleX);
+    servoX.write(angleX);
+    //int errorY = map(PID_valueY, -600, 600, 10, 100);
+    //int errorY = map(errorY, -600, 600, 80, 60);
+    int errorY = map(errorY, -600, 600, 85, 55);
+    inputY = map(inputY, -600, 600, 70+10, 70-10);
+    int angleY = errorY + inputY;
+    Serial.println(angleY);
+    //servoY.write(angleY);
   }
-  printf("123");
-
-  if (inputX<600 && inputX>200 && inputY<500 && inputY>100){
-    can_fire = true;
-    fire();
-    Serial.println("can fire");
-  }
-  if (inputX>=500 || inputX>=300 || inputY<=400 || inputY>=200){
-    can_fire = false;
-  }
-
-  // pidX.Compute();
-  // pidY.Compute();
-  //calc_pidX();
-  //calc_pidY();
-  
-  PX = errorX;
-  IX = IX + errorX;
-  DX = errorX - previous_errorX;
-  PID_valueX = (Kp * PX) + (Ki * IX) + (Kd * DX);
-  previous_errorX = errorX;
-  Serial.println(errorX);
-  errorX=0;
-  PY = errorY;
-  IY = IY + errorY;
-  DY = errorY - previous_errorY;
-  PID_valueY = (Kp * PY) + (Ki * IY) + (Kd * DY);
-  previous_errorY = errorY;
-  Serial.println(errorY);
-  errorY=0;
-  //writeServoX();
-  //writeServoY();
-
-  int errorX = map(PID_valueX, -800, 800, 86, 266); 
-  errorX = errorX + inputX;
-  Serial.println(errorX);
-  servoX.write(errorX);
-  int errorY = map(PID_valueY, -600, 600, 10, 100); 
-  errorY = errorY + inputY;
-  Serial.println(errorY);
-  servoY.write(errorY);
-
 }
 
 
@@ -140,8 +147,7 @@ void loop() {
 //   return ;
 // }
 
-void calc_pidX()
-{
+void calc_pidX() {
   PX = errorX;
   IX = IX + errorX;
   DX = errorX - previous_errorX;
@@ -149,8 +155,7 @@ void calc_pidX()
   previous_errorX = errorX;
 }
 
-void calc_pidY()
-{
+void calc_pidY() {
   PY = errorY;
   IY = IY + errorY;
   DY = errorY - previous_errorY;
@@ -158,17 +163,17 @@ void calc_pidY()
   previous_errorY = errorY;
 }
 
-void writeServoX() {
-  int angleX = map(PID_valueX, -800, 800, 86, 266); 
-  angleX = angleX + inputX;
-  servoX.write(angleX);
-}
+// void writeServoX() {
+//   int angleX = map(PID_valueX, -800, 800, 186, 166);
+//   angleX = angleX + inputX;
+//   servoX.write(angleX);
+// }
 
-void writeServoY() {
-  int angleY = map(PID_valueY, -600, 600, 10, 100); 
-  angleY = angleY + inputY;
-  servoY.write(angleY);
-}
+// void writeServoY() {
+//   int angleY = map(PID_valueY, -600, 600, 75, 65);
+//   angleY = angleY + inputY;
+//   servoY.write(angleY);
+// }
 
 void fire() {
 
@@ -184,13 +189,11 @@ void fire() {
   if (is_firing && firing_current_time - firing_start_time < firing_time) {
     digitalWrite(shoot, HIGH);
     Serial.println("fire");
-  }
-  else if (is_firing && firing_current_time - firing_start_time >= firing_time) {
+  } else if (is_firing && firing_current_time - firing_start_time >= firing_time) {
     digitalWrite(shoot, LOW);
     Serial.println("停火");
     digitalWrite(stop, LOW);
     Serial.println("下面子彈回來");
     is_firing = false;
   }
-
 }
